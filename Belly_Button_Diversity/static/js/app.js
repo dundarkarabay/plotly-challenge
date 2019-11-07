@@ -1,8 +1,7 @@
-function buildMetadata(sample) {
-
+function buildMetadata(firstsample) {
   (async function () {
-    // Use `d3.json` to fetch the metadata for a sample
-    let data = await d3.json(`/metadata/${sample}`);
+    // Use `d3.json` to fetch the metadata for the first/initial sample
+    let data = await d3.json(`/metadata/${firstsample}`);
     // Use d3 to select the panel with id of `#sample-metadata` and clear any existing metadata
     d3.selectAll("div#sample-metadata>tr").remove();
     // Use `Object.entries` to add each key and value pair to the panel
@@ -65,33 +64,41 @@ function buildMetadata(sample) {
     }
 
     const dataGauge = [traceGauge]
-    Plotly.plot('gauge', dataGauge, gaugeLayout)   
+    Plotly.plot("gauge", dataGauge, gaugeLayout)   
   })()
 }
 
-// function updateGaugePlotly(sample) {
-//   (async function () {
-//     let data = await d3.json(`/metadata/${sample}`);
-//     const needleLength = 0.2*Math.sqrt(2);
-//     const washFREQ = parseInt(data.WFREQ);
-//     const radians = washFREQ * Math.PI / 9
-//     const x_1 = (0.5 - (needleLength*Math.cos(radians)));
-//     const y_1 = (0.5 + (needleLength*Math.sin(radians)));
-//     const new_gaugeLayout = {
-//       shapes: [{
-//         x1: x_1,
-//         y1: y_1,
-//       }]
-//     };
-//     Plotly.update('gauge', new_gaugeLayout);
-//   })()
-// }
-
-function buildCharts(sample) {
+function updateBuildMetadata(newSample) {
   (async function () {
-    // Use `d3.json` to fetch the sample data for the plots
-    const data = await d3.json(`/samples/${sample}`);
-    // Transforming the data to an arry ob objects so that we can easily sort them.
+    // Use `d3.json` to fetch the metadata for the new sample
+    let data = await d3.json(`/metadata/${newSample}`);
+    // Use d3 to select the panel with id of `#sample-metadata` and clear any existing metadata
+    d3.selectAll("div#sample-metadata>tr").remove();
+    // Use `Object.entries` to add each key and value pair to the panel
+    const dataArray = Object.entries(data);
+    // Hint: Inside the loop, you will need to use d3 to append new tags for each key-value in the metadata.
+    for(let i=0; i<dataArray.length;i++){
+      d3.select("div#sample-metadata").append("tr").append("td").text(`${dataArray[i][0]}: ${dataArray[i][1]}`);
+    }
+    // Updating the end point of the needle depending on the WFREQ of the new sample
+    const needleLength = 0.2*Math.sqrt(2);
+    const washFREQ = parseInt(data.WFREQ);
+    const radians = washFREQ * Math.PI / 9
+    const x_1 = (0.5 - (needleLength*Math.cos(radians)));
+    const y_1 = (0.5 + (needleLength*Math.sin(radians)));
+    const newGaugeLayout = {
+      shapes: [{type:'line', fillcolor:'850000', x0:0.5, y0:0.5, x1:x_1, y1:y_1, line:{color: '850000'}}]
+    }
+    console.log(`${x_1} ${y_1}`);
+    Plotly.relayout("gauge", newGaugeLayout);
+  })()
+}
+
+function buildCharts(firstsample) {
+  (async function () {
+    // Use `d3.json` to fetch the first/initial sample data for the plots
+    const data = await d3.json(`/samples/${firstsample}`);
+    // Transforming the data to an array of objects so that we can easily sort them.
     const dataLength = data.otu_ids.length;
     const transformedData = [];
 
@@ -103,11 +110,11 @@ function buildCharts(sample) {
       };
       transformedData.push(dict);
     }
-    // Sorting the transformed data from highest to lowest based on sample_values.
+    // Sorting the transformed data from the highest to the lowest based on sample_values.
     const new_data = transformedData.sort((minimum, maximum) => maximum.sample_values-minimum.sample_values);
     // Slicing the ordered data.
     const first_ten_new_data = new_data.slice(0,10);
-    // Building the pie chart
+    // Building the initial pie chart
     const tracePie = {
       values: first_ten_new_data.map(d=> d.sample_values),
       labels: first_ten_new_data.map(d=> d.otu_ids),
@@ -122,8 +129,7 @@ function buildCharts(sample) {
     };
 
     Plotly.plot("pie", [tracePie], pieLayout);
-    // Building the scatter plot
-    console.log(transformedData);
+    // Building the initial buuble plot
     const traceScatter = {
       x: transformedData.map(d=> d.otu_ids),
       y: transformedData.map(d=> d.sample_values),
@@ -144,6 +150,37 @@ function buildCharts(sample) {
     };
 
     Plotly.plot("bubble", [traceScatter], scatterLayout);
+  })()
+}
+
+function updateBuildCharts(newsample) {
+  (async function () {
+    // Use `d3.json` to fetch the new sample data for the plots
+    const data = await d3.json(`/samples/${newsample}`);
+    // Transforming the data to an array of objects so that we can easily sort them.
+    const dataLength = data.otu_ids.length;
+    const transformedData = [];
+
+    for (let i=0; i<dataLength; i++){
+      let dict = {
+        "otu_ids": data.otu_ids[i],
+        "otu_labels": data.otu_labels[i],
+        "sample_values": data.sample_values[i] 
+      };
+      transformedData.push(dict);
+    }
+    // Sorting the transformed data from the highest to the lowest based on sample_values.
+    const new_data = transformedData.sort((minimum, maximum) => maximum.sample_values-minimum.sample_values);
+    // Slicing the ordered data.
+    const first_ten_new_data = new_data.slice(0,10);
+    // Updating the existing pie chart with the new one
+    Plotly.restyle("pie", "values", [first_ten_new_data.map(d=> d.sample_values)]);
+    Plotly.restyle("pie", "labels", [first_ten_new_data.map(d=> d.otu_ids)]);
+    Plotly.restyle("pie", "hovertext", [first_ten_new_data.map(d=> d.otu_labels)]);
+    // Updating the existing bubble plot with the new one
+    Plotly.restyle("bubble", "x", [transformedData.map(d=> d.otu_ids)]);
+    Plotly.restyle("bubble", "y", [transformedData.map(d=> d.sample_values)]);
+    Plotly.restyle("bubble", "text", [transformedData.map(d=> d.otu_labels)]);
   })()
 }
 
@@ -169,9 +206,8 @@ function init() {
 
 function optionChanged(newSample) {
   // Fetch new data each time a new sample is selected
-  buildCharts(newSample);
-  buildMetadata(newSample);
-  // updateGaugePlotly(newSample);
+  updateBuildCharts(newSample);
+  updateBuildMetadata(newSample);
 }
 
 // Initialize the dashboard
